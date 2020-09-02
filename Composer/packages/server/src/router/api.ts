@@ -16,7 +16,7 @@ const router: Router = express.Router({});
 router.post('/projects', ProjectController.createProject);
 router.get('/projects', ProjectController.getAllProjects);
 router.get('/projects/recent', ProjectController.getRecentProjects);
-
+router.get('/projects/checkIfBotProjectSpace', ProjectController.checkIfBotProjectSpace);
 router.get('/projects/:projectId', ProjectController.getProjectById);
 router.put('/projects/open', ProjectController.openProject);
 router.delete('/projects/:projectId', ProjectController.removeProject);
@@ -29,7 +29,6 @@ router.post('/projects/:projectId/build', ProjectController.build);
 router.post('/projects/:projectId/qnaSettings/set', ProjectController.setQnASettings);
 router.post('/projects/:projectId/project/saveAs', ProjectController.saveProjectAs);
 router.get('/projects/:projectId/export', ProjectController.exportProject);
-router.get('/projects/checkIfBotProject', ProjectController.handleBotProject);
 
 // update the boilerplate content
 router.get('/projects/:projectId/boilerplateVersion', ProjectController.checkBoilerplateVersion);

@@ -415,14 +415,19 @@ async function updateBoilerplate(req: Request, res: Response) {
   }
 }
 
-async function handleBotProject(req: Request, res: Response) {
-  const projectId = req.params.projectId;
+async function checkIfBotProjectSpace(
+  req: Request,
+  res: Response
+): Promise<{
+  isBotProjectSpace: boolean;
+  contents: any;
+}> {
   const { path, storageId } = req.query;
+  const user = await PluginLoader.getUserFromRequest(req);
   if (!path || !storageId) {
     res.status(400).json({
       message: 'parameters not provided, require stoarge id and path',
     });
-    return;
   }
   const location: LocationRef = {
     storageId,
@@ -430,9 +435,13 @@ async function handleBotProject(req: Request, res: Response) {
   };
 
   try {
-    const id = await BotProjectService.checkIfBotProject(location, user);
+    const result = await BotProjectService.checkIfBotProjectSpace(location, user);
+    return result;
   } catch (ex) {
-    return {};
+    return {
+      isBotProjectSpace: false,
+      contents: undefined,
+    };
   }
 }
 
@@ -454,5 +463,5 @@ export const ProjectController = {
   getRecentProjects,
   updateBoilerplate,
   checkBoilerplateVersion,
-  handleBotProject,
+  checkIfBotProjectSpace,
 };
