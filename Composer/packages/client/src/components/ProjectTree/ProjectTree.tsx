@@ -2,15 +2,8 @@
 // Licensed under the MIT License.
 
 /** @jsx jsx */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { jsx, css } from '@emotion/core';
-import {
-  GroupedList,
-  IGroup,
-  IGroupHeaderProps,
-  IGroupRenderProps,
-  IGroupedList,
-} from 'office-ui-fabric-react/lib/GroupedList';
 import { SearchBox } from 'office-ui-fabric-react/lib/SearchBox';
 import { FocusZone, FocusZoneDirection } from 'office-ui-fabric-react/lib/FocusZone';
 import cloneDeep from 'lodash/cloneDeep';
@@ -19,7 +12,6 @@ import { DialogInfo, ITrigger } from '@bfc/shared';
 import { Resizable, ResizeCallback } from 're-resizable';
 import debounce from 'lodash/debounce';
 import { useRecoilValue } from 'recoil';
-import { IGroupedListStyles } from 'office-ui-fabric-react/lib/GroupedList';
 import { ISearchBoxStyles } from 'office-ui-fabric-react/lib/SearchBox';
 
 import { dispatcherState, userSettingsState } from '../../recoilModel';
@@ -29,13 +21,6 @@ import { containUnsupportedTriggers, triggerNotSupported } from '../../utils/dia
 import { TreeItem } from './treeItem';
 
 // -------------------- Styles -------------------- //
-
-const groupListStyle: Partial<IGroupedListStyles> = {
-  root: {
-    width: '100%',
-    boxSizing: 'border-box',
-  },
-};
 
 const searchBox: ISearchBoxStyles = {
   root: {
@@ -53,32 +38,14 @@ const root = css`
   overflow-y: auto;
   overflow-x: hidden;
   .ms-List-cell {
-    min-height: 36px;
+    min-height: 24px;
   }
 `;
 
 // -------------------- ProjectTree -------------------- //
 
-function createGroupItem(dialog: DialogInfo, currentId: string, position: number, warningContent: string): IGroup {
-  return {
-    key: dialog.id,
-    name: dialog.displayName,
-    level: 1,
-    startIndex: position,
-    count: dialog.triggers.length,
-    hasMoreData: true,
-    isCollapsed: dialog.id !== currentId,
-    data: { ...dialog, warningContent },
-  };
-}
-
-function createItem(trigger: ITrigger, index: number, warningContent: string) {
-  return {
-    ...trigger,
-    index,
-    warningContent,
-    displayName: trigger.displayName || getFriendlyName({ $kind: trigger.type }),
-  };
+function getTriggerName(trigger: ITrigger) {
+  return trigger.displayName || getFriendlyName({ $kind: trigger.type });
 }
 
 function sortDialog(dialogs: DialogInfo[]) {
@@ -94,31 +61,31 @@ function sortDialog(dialogs: DialogInfo[]) {
   });
 }
 
-function createItemsAndGroups(
-  dialogs: DialogInfo[],
-  dialogId: string,
-  filter: string
-): { items: any[]; groups: IGroup[] } {
-  let position = 0;
-  const result = dialogs
-    .filter((dialog) => {
-      return dialog.displayName.toLowerCase().includes(filter.toLowerCase());
-    })
-    .reduce(
-      (result: { items: any[]; groups: IGroup[] }, dialog) => {
-        const warningContent = containUnsupportedTriggers(dialog);
-        result.groups.push(createGroupItem(dialog, dialogId, position, warningContent));
-        position += dialog.triggers.length;
-        dialog.triggers.forEach((item, index) => {
-          const warningContent = triggerNotSupported(dialog, item);
-          result.items.push(createItem(item, index, warningContent));
-        });
-        return result;
-      },
-      { items: [], groups: [] }
-    );
-  return result;
-}
+// function createItemsAndGroups(
+//   dialogs: DialogInfo[],
+//   dialogId: string,
+//   filter: string
+// ): { items: any[]; groups: IGroup[] } {
+//   let position = 0;
+//   const result = dialogs
+//     .filter((dialog) => {
+//       return dialog.displayName.toLowerCase().includes(filter.toLowerCase());
+//     })
+//     .reduce(
+//       (result: { items: any[]; groups: IGroup[] }, dialog) => {
+//         const warningContent = containUnsupportedTriggers(dialog);
+//         result.groups.push(createGroupItem(dialog, dialogId, position, warningContent));
+//         position += dialog.triggers.length;
+//         dialog.triggers.forEach((item, index) => {
+//           const warningContent = triggerNotSupported(dialog, item);
+//           result.items.push(createItem(item, index, warningContent));
+//         });
+//         return result;
+//       },
+//       { items: [], groups: [] }
+//     );
+//   return result;
+// }
 
 interface IProjectTreeProps {
   dialogs: DialogInfo[];
@@ -129,12 +96,15 @@ interface IProjectTreeProps {
   onDeleteDialog: (id: string) => void;
 }
 
+const TYPE_TO_ICON_MAP = {
+  'Microsoft.OnUnknownIntent': '',
+};
+
 export const ProjectTree: React.FC<IProjectTreeProps> = (props) => {
   const { onboardingAddCoachMarkRef, updateUserSettings } = useRecoilValue(dispatcherState);
   const { dialogNavWidth: currentWidth } = useRecoilValue(userSettingsState);
 
-  const groupRef: React.RefObject<IGroupedList> = useRef(null);
-  const { dialogs, dialogId, selected, onSelect, onDeleteTrigger, onDeleteDialog } = props;
+  const { dialogs, selected, onSelect, onDeleteTrigger, onDeleteDialog } = props;
   const [filter, setFilter] = useState('');
   const delayedSetFilter = debounce((newValue) => setFilter(newValue), 1000);
   const addMainDialogRef = useCallback((mainDialog) => onboardingAddCoachMarkRef({ mainDialog }), []);
@@ -143,41 +113,42 @@ export const ProjectTree: React.FC<IProjectTreeProps> = (props) => {
     return sortDialog(dialogs);
   }, [dialogs]);
 
-  const onRenderHeader = (props: IGroupHeaderProps) => {
-    const toggleCollapse = (): void => {
-      groupRef.current?.toggleCollapseAll(true);
-      props.onToggleCollapse?.(props.group!);
-      onSelect(props.group!.key);
-    };
+  const renderHeader = (dialog: DialogInfo, warningContent: string) => {
     return (
-      <span ref={props.group?.data.isRoot && addMainDialogRef} role="grid">
+      <span
+        ref={dialog.isRoot ? addMainDialogRef : null}
+        css={css`
+          margin-top: -6px;
+          width: 100%;
+        `}
+        role="grid"
+      >
         <TreeItem
+          showProps
           depth={0}
-          isActive={!props.group!.isCollapsed}
+          icon={'CannedChat'}
           isSubItemActive={!!selected}
-          link={props.group!.data}
+          link={{ ...dialog, warningContent }}
           onDelete={onDeleteDialog}
-          onSelect={toggleCollapse}
+          onSelect={() => onSelect(dialog.id)}
         />
       </span>
     );
   };
 
-  function onRenderCell(nestingDepth?: number, item?: any): React.ReactNode {
+  function renderCell(item: any, depth: number, dialog: DialogInfo): React.ReactNode {
     return (
       <TreeItem
-        depth={nestingDepth}
-        isActive={createSelectedPath(item.index) === selected}
+        depth={depth}
+        dialogName={dialog.displayName}
+        icon={TYPE_TO_ICON_MAP[item.type] || 'Flow'}
+        isActive={dialog.id === props.dialogId && createSelectedPath(item.index) === selected}
         link={item}
-        onDelete={() => onDeleteTrigger(dialogId, item.index)}
-        onSelect={() => onSelect(dialogId, createSelectedPath(item.index))}
+        onDelete={() => onDeleteTrigger(dialog.id, item.index)}
+        onSelect={() => onSelect(dialog.id, createSelectedPath(item.index))}
       />
     );
   }
-
-  const onRenderShowAll = () => {
-    return null;
-  };
 
   const onFilter = (_e?: any, newValue?: string): void => {
     if (typeof newValue === 'string') {
@@ -189,7 +160,48 @@ export const ProjectTree: React.FC<IProjectTreeProps> = (props) => {
     updateUserSettings({ dialogNavWidth: currentWidth + d.width });
   };
 
-  const itemsAndGroups: { items: any[]; groups: IGroup[] } = createItemsAndGroups(sortedDialogs, dialogId, filter);
+  function filterMatch(scope: string, target: string) {
+    return scope.toLowerCase().includes(target.toLowerCase());
+  }
+
+  function createDetailsTree(dialogs: DialogInfo[], filter: string) {
+    const filteredDialogs =
+      filter == null || filter.length === 0
+        ? dialogs
+        : dialogs.filter(
+            (dialog) =>
+              filterMatch(dialog.displayName, filter) ||
+              dialog.triggers.some((trigger) => filterMatch(getTriggerName(trigger), filter))
+          );
+
+    return filteredDialogs.map((dialog: DialogInfo) => {
+      const triggerList = dialog.triggers
+        .filter((tr) => filterMatch(dialog.displayName, filter) || filterMatch(getTriggerName(tr), filter))
+        .map((tr, index) =>
+          renderCell(
+            { ...tr, index, displayName: getTriggerName(tr), warningContent: triggerNotSupported(dialog, tr) },
+            1,
+            dialog
+          )
+        );
+      return (
+        <details key={dialog.id} ref={dialog.isRoot ? addMainDialogRef : undefined}>
+          <summary
+            css={css`
+              display: flex;
+              padding-left: 12px;
+              padding-top: 12px;
+            `}
+          >
+            {renderHeader(dialog, containUnsupportedTriggers(dialog))}
+          </summary>
+          {triggerList}
+        </details>
+      );
+    });
+  }
+
+  const detailsTree = createDetailsTree(sortedDialogs, filter);
 
   return (
     <Resizable
@@ -230,25 +242,11 @@ export const ProjectTree: React.FC<IProjectTreeProps> = (props) => {
                   0 {}
                 other {Press down arrow key to navigate the search results}
             }`,
-              { dialogNum: itemsAndGroups.groups.length }
+              { dialogNum: dialogs.length }
             )}
             aria-live={'polite'}
           />
-          <GroupedList
-            {...itemsAndGroups}
-            componentRef={groupRef}
-            groupProps={
-              {
-                onRenderHeader: onRenderHeader,
-                onRenderShowAll: onRenderShowAll,
-                showEmptyGroups: true,
-                showAllProps: false,
-                isAllGroupsCollapsed: true,
-              } as Partial<IGroupRenderProps>
-            }
-            styles={groupListStyle}
-            onRenderCell={onRenderCell}
-          />
+          {detailsTree}
         </FocusZone>
       </div>
     </Resizable>

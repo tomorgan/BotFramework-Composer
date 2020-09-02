@@ -38,6 +38,8 @@ const content = css`
   outline: none;
   display: flex;
   align-items: center;
+  justify-items: middle;
+  height: 24px;
 
   label: ProjectTreeItem;
 `;
@@ -77,13 +79,13 @@ const moreButton = (isActive: boolean): IButtonStyles => {
   };
 };
 
-const navItem = (isActive: boolean, isSubItemActive: boolean) => css`
+const navItem = (isActive: boolean) => css`
   width: 100%;
   position: relative;
-  height: 36px;
+  height: 24px;
   font-size: 12px;
-  color: #545454;
-  background: ${isActive && !isSubItemActive ? '#f2f2f2' : 'transparent'};
+  color: ${isActive ? '#ffffff' : '#545454'};
+  background: ${isActive ? '#0078d4' : 'transparent'};
   font-weight: ${isActive ? FontWeights.semibold : FontWeights.regular};
   &:hover {
     color: #545454;
@@ -110,13 +112,13 @@ const navItem = (isActive: boolean, isSubItemActive: boolean) => css`
   }
 `;
 
-export const overflowSet = css`
+export const overflowSet = (depth: number) => css`
   width: 100%;
   height: 100%;
-  padding-left: 12px;
+  padding-left: ${depth * 12}px;
   padding-right: 12px;
   box-sizing: border-box;
-  line-height: 36px;
+  line-height: 24px;
   justify-content: space-between;
   display: flex;
   justify-content: space-between;
@@ -132,11 +134,14 @@ const warningIcon = {
 
 interface ITreeItemProps {
   link: any;
-  isActive: boolean;
+  isActive?: boolean;
   isSubItemActive?: boolean;
   depth: number | undefined;
   onDelete: (id: string) => void;
   onSelect: (id: string) => void;
+  icon?: string;
+  dialogName?: string;
+  showProps?: boolean;
 }
 
 const onRenderItem = (item: IOverflowSetItemProps) => {
@@ -146,13 +151,14 @@ const onRenderItem = (item: IOverflowSetItemProps) => {
   return (
     <div
       data-is-focusable
+      aria-label={warningContent}
       css={itemText(item.depth)}
       role="cell"
       tabIndex={0}
       onBlur={item.onBlur}
       onFocus={item.onFocus}
     >
-      <div css={content} tabIndex={-1}>
+      <div css={content} role="presentation" tabIndex={-1}>
         {item.warningContent ? (
           <TooltipHost content={warningContent} directionalHint={DirectionalHint.bottomLeftEdge}>
             <Icon iconName={'Warning'} style={warningIcon} />
@@ -160,9 +166,9 @@ const onRenderItem = (item: IOverflowSetItemProps) => {
         ) : (
           <div css={leftIndent} />
         )}
-        {item.depth !== 0 && (
+        {item.icon != null && (
           <Icon
-            iconName="Flow"
+            iconName={item.icon}
             styles={{
               root: {
                 marginRight: '8px',
@@ -205,12 +211,33 @@ const onRenderOverflowButton = (isRoot: boolean, isActive: boolean) => {
 };
 
 export const TreeItem: React.FC<ITreeItemProps> = (props) => {
-  const { link, isActive, isSubItemActive, depth, onDelete, onSelect } = props;
+  const { link, isActive, depth, onDelete, onSelect, icon, dialogName } = props;
+
+  const a11yLabel = `${dialogName ?? '$Root'}_${link.displayName}`;
+
+  const overflowMenu = [
+    {
+      key: 'delete',
+      name: formatMessage('Delete'),
+      onClick: () => onDelete(link.id),
+    },
+  ];
+
+  if (props.showProps) {
+    overflowMenu.push({
+      key: 'props',
+      name: formatMessage('Properties'),
+      onClick: () => onSelect(link.id),
+    });
+  }
 
   return (
     <div
-      css={navItem(isActive, !!isSubItemActive)}
-      role="presentation"
+      aria-label={a11yLabel}
+      css={navItem(!!isActive)}
+      data-testid={a11yLabel}
+      role="gridcell"
+      tabIndex={0}
       onClick={() => {
         onSelect(link.id);
       }}
@@ -224,26 +251,21 @@ export const TreeItem: React.FC<ITreeItemProps> = (props) => {
         //In 8.0 the OverflowSet will no longer be wrapped in a FocusZone
         //remove this at that time
         doNotContainWithinFocusZone
-        css={overflowSet}
+        css={overflowSet(depth ?? 0)}
         data-testid={`DialogTreeItem${link.id}`}
         items={[
           {
             key: link.id,
             depth,
+            icon,
             ...link,
           },
         ]}
-        overflowItems={[
-          {
-            key: 'delete',
-            name: formatMessage('Delete'),
-            onClick: () => onDelete(link.id),
-          },
-        ]}
+        overflowItems={overflowMenu}
         role="row"
         styles={{ item: { flex: 1 } }}
         onRenderItem={onRenderItem}
-        onRenderOverflowButton={onRenderOverflowButton(link.isRoot, isActive)}
+        onRenderOverflowButton={onRenderOverflowButton(link.isRoot, !!isActive)}
       />
     </div>
   );
