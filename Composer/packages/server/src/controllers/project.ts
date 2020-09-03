@@ -415,13 +415,7 @@ async function updateBoilerplate(req: Request, res: Response) {
   }
 }
 
-async function checkIfBotProjectSpace(
-  req: Request,
-  res: Response
-): Promise<{
-  isBotProjectSpace: boolean;
-  contents: any;
-}> {
+async function checkIfBotProjectSpace(req: Request, res: Response) {
   const { path, storageId } = req.query;
   const user = await PluginLoader.getUserFromRequest(req);
   if (!path || !storageId) {
@@ -436,12 +430,12 @@ async function checkIfBotProjectSpace(
 
   try {
     const result = await BotProjectService.checkIfBotProjectSpace(location, user);
-    return result;
+    res.status(200).json(result);
   } catch (ex) {
-    return {
+    res.status(400).json({
       isBotProjectSpace: false,
       contents: undefined,
-    };
+    });
   }
 }
 
