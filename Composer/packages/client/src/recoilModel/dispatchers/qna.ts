@@ -4,6 +4,7 @@
 import { QnAFile } from '@bfc/shared';
 import { useRecoilCallback, CallbackInterface } from 'recoil';
 import { qnaUtil } from '@bfc/indexers';
+import differenceBy from 'lodash/differenceBy';
 
 import qnaWorker from '../parsers/qnaWorker';
 import {
@@ -27,6 +28,36 @@ import httpClient from '../../utils/httpUtil';
 import { rootBotProjectIdSelector } from '../selectors';
 
 import { addNotificationInternal, deleteNotificationInternal, createNotification } from './notification';
+
+/**
+ * Recoil state from snapshot can be expired, use updater can make fine-gained operations.
+ *
+ * @param changes lu files need to be updated, usually one locale lu file's structure change need sync to other locale.
+ * @param contentCheckTargetId If content is expired, drop update on this file.
+ *
+ */
+const qnaFilesAtomUpdater = (changes: QnAFile[], contentCheckTargetId?: string) => {
+  return (prevQnAFiles: QnAFile[]): QnAFile[] => {
+    if (contentCheckTargetId) {
+      const currentFile = prevQnAFiles.find((file) => file.id === contentCheckTargetId);
+      const targetFile = changes.find((file) => file.id === contentCheckTargetId);
+      // compaire to drop expired change on current lu file.
+      if (currentFile?.content !== targetFile?.content) {
+        changes = changes.filter((file) => file.id !== contentCheckTargetId);
+      }
+    }
+
+    const addedFiles = differenceBy(changes, prevQnAFiles, 'id');
+
+    return [
+      ...addedFiles,
+      ...prevQnAFiles.map((file) => {
+        const changedFile = changes.find(({ id }) => id === file.id);
+        return changedFile ?? file;
+      }),
+    ];
+  };
+};
 
 export const updateQnAFileState = async (
   callbackHelpers: CallbackInterface,
